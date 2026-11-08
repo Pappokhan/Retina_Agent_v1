@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retina Agent</title>
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Retina Agent</h1>
+      <p>Realtime retinal vessel segmentation with explanations.</p>
+    </div>
+    <ul class="status" aria-label="Server status">
+      <li id="st-device">Checking server…</li>
+      <li id="st-models"></li>
+      <li id="st-vlm"></li>
+    </ul>
+    <label class="token" id="token-wrap" hidden>
+      <span>Access token</span>
+      <input id="token" type="password" autocomplete="off" spellcheck="false">
+    </label>
+  </header>
+
+  <main class="layout">
+    <!-- Controls -->
+    <section class="rail" aria-label="Controls">
+      <div class="model-card">
+        <span class="eyebrow">Model</span>
+        <strong>Attention U-Net</strong>
+      </div>
+
+      <fieldset class="field">
+        <legend>Variant</legend>
+        <div class="seg" id="variant-list" role="radiogroup" aria-label="Model variant"></div>
+        <p class="hint" id="variant-note"></p>
+      </fieldset>
+
+      <div class="field">
+        <span class="label" id="image-label">Image</span>
+        <label class="drop" id="drop" for="file">
+          <span id="drop-text">Drop a retinal image here, or choose a file.</span>
+          <input type="file" id="file" accept="image/*" aria-labelledby="image-label">
+        </label>
+      </div>
+
+      <div class="field">
+        <label class="slider wide" for="thr">
+          <span>Threshold <output id="thr-out">0.50</output></span>
+          <input type="range" id="thr" min="0.05" max="0.95" step="0.01" value="0.5">
+        </label>
+        <p class="hint">Updates the mask instantly; numbers follow a moment later.</p>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn primary" id="btn-run">Segment image</button>
+        <button type="button" class="btn" id="btn-compare">Compare variants</button>
+        <button type="button" class="btn live-btn" id="btn-live"><span class="dot" aria-hidden="true"></span><span id="btn-live-text">Start live camera</span></button>
+      </div>
+
+      <div class="field live-opts" id="live-opts">
+        <span class="label">Live settings</span>
+        <label class="inline">
+          <span>Resolution</span>
+          <select id="live-size"></select>
+        </label>
+        <label class="inline">
+          <span>Live explanation</span>
+          <select id="live-xai">
+            <option value="none">Mask only</option>
+            <option value="uncertainty">Uncertainty</option>
+            <option value="attention">Attention</option>
+          </select>
+        </label>
+        <button type="button" class="btn small" id="btn-snap" disabled>Capture frame for full analysis</button>
+      </div>
+
+      <p class="msg" id="msg" role="status" aria-live="polite"></p>
+    </section>
+
+    <!-- Viewer -->
+    <section class="viewer" aria-label="Viewer">
+      <div class="toolbar">
+        <div class="views" role="group" aria-label="Result views">
+          <button type="button" class="view" data-view="overlay" aria-pressed="true">Overlay</button>
+          <button type="button" class="view" data-view="wipe" aria-pressed="false">Wipe</button>
+          <button type="button" class="view" data-view="heat" aria-pressed="false">Probability</button>
+          <button type="button" class="view" data-view="orig" aria-pressed="false">Original</button>
+        </div>
+        <div class="views xai-views" role="group" aria-label="Explanation views">
+          <span class="views-label">XAI</span>
+          <button type="button" class="view" data-view="attention" aria-pressed="false">Attention</button>
+          <button type="button" class="view" data-view="gradcam" aria-pressed="false">Grad-CAM</button>
+          <button type="button" class="view" data-view="uncertainty" aria-pressed="false">Uncertainty</button>
+          <button type="button" class="view" data-view="mc_dropout" aria-pressed="false">MC dropout</button>
+        </div>
+      </div>
+
+      <div class="toolbar sub">
+        <label class="slider" id="opacity-wrap">
+          <span>Layer strength</span>
+          <input type="range" id="opacity" min="0" max="100" value="85">
+        </label>
+        <label class="slider" id="wipe-wrap" hidden>
+          <span>Wipe position</span>
+          <input type="range" id="wipe" min="0" max="100" value="50">
+        </label>
+        <label class="inline" id="gate-wrap" hidden>
+          <span>Gate</span>
+          <select id="gate">
+            <option value="combined">All gates (mean)</option>
+            <option value="up1">up1 · 64 px (coarse)</option>
+            <option value="up2">up2 · 128 px</option>
+            <option value="up3">up3 · 256 px</option>
+            <option value="up4">up4 · 512 px (fine)</option>
+          </select>
+        </label>
+        <label class="inline" id="layer-wrap" hidden>
+          <span>Layer</span>
+          <select id="layer"></select>
+        </label>
+        <label class="slider" id="radius-wrap" hidden>
+          <span>Region size <output id="radius-out">48</output> px</span>
+          <input type="range" id="radius" min="16" max="160" value="48">
+        </label>
+        <button type="button" class="btn small" id="btn-clear-roi" hidden>Whole image</button>
+        <label class="inline" id="samples-wrap" hidden>
+          <span>Passes</span>
+          <select id="samples"><option>4</option><option selected>8</option><option>16</option></select>
+        </label>
+        <button type="button" class="btn small" id="btn-mc" hidden>Run MC dropout</button>
+      </div>
+
+      <div class="well" id="well">
+        <div class="stage" id="stage" hidden>
+          <video id="cam" playsinline muted hidden></video>
+          <img id="img-base" alt="Original image">
+          <canvas id="layer-canvas" width="512" height="512" aria-label="Result layer"></canvas>
+          <canvas id="live-xai-canvas" width="512" height="512" hidden></canvas>
+          <canvas id="live-canvas" width="512" height="512" hidden></canvas>
+          <div class="wipe-handle" id="wipe-handle" hidden></div>
+          <div class="roi" id="roi" hidden></div>
+          <div class="hud" id="hud" hidden aria-live="off">
+            <span class="rec">LIVE</span>
+            <span><b id="h-fps">–</b> model fps</span>
+            <span><b id="h-lat">–</b> ms latency</span>
+            <span><b id="h-size">–</b> px</span>
+          </div>
+          <p class="stage-tip" id="stage-tip" hidden>Click the image to explain one region.</p>
+          <div class="spinner" id="spinner" hidden aria-hidden="true"></div>
+        </div>
+        <p class="empty" id="empty">Upload an image, or start the live camera.</p>
+      </div>
+
+      <dl class="stats" id="stats">
+        <div><dt>Vessel area</dt><dd id="s-area">–</dd></div>
+        <div><dt>Mean confidence</dt><dd id="s-conf">–</dd></div>
+        <div><dt>Uncertain pixels</dt><dd id="s-unc">–</dd></div>
+        <div><dt>Model time</dt><dd id="s-ms">–</dd></div>
+      </dl>
+
+      <section class="xai-panel" id="xai-panel" hidden aria-label="Explanation details">
+        <div class="xai-head">
+          <h2 id="xai-title">Explanation</h2>
+          <button type="button" class="btn small primary" id="btn-xai-explain">Explain this map in words</button>
+        </div>
+        <p class="hint" id="xai-help"></p>
+        <div class="xai-summary" id="xai-summary"></div>
+        <div class="reading" id="xai-text" aria-live="polite"></div>
+      </section>
+
+      <section class="compare" id="compare" hidden aria-label="Variant comparison">
+        <h2>Variants on this image</h2>
+        <div class="compare-grid" id="compare-grid"></div>
+        <p class="hint" id="compare-note"></p>
+        <table class="agreement" id="agreement">
+          <caption>Mask agreement between variants (Dice, 1.00 means identical)</caption>
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </section>
+
+    <!-- Assistant -->
+    <section class="assistant" aria-label="Assistant">
+      <div class="assistant-head">
+        <div class="tabs" role="tablist" aria-label="Assistant">
+          <button type="button" role="tab" id="tab-report" aria-controls="panel-report" aria-selected="true">Report</button>
+          <button type="button" role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" tabindex="-1">Ask</button>
+          <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="false" tabindex="-1">Chat agent</button>
+          <button type="button" role="tab" id="tab-notes" aria-controls="panel-notes" aria-selected="false" tabindex="-1">Notes</button>
+        </div>
+        <label class="lang">
+          <span>Answer language</span>
+          <select id="lang"></select>
+        </label>
+      </div>
+
+      <div role="tabpanel" id="panel-report" aria-labelledby="tab-report" class="panel">
+        <div class="row">
+          <button type="button" class="btn primary" id="btn-report">Explain this result</button>
+          <button type="button" class="btn" id="btn-diff">Explain differences</button>
+        </div>
+        <div class="reading" id="report-out" aria-live="polite">
+          <p class="placeholder">Segment an image, then choose Explain this result. The vision model sees the image, the mask, the uncertainty map and the attention map, plus the numbers measured on the server.</p>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="panel-ask" aria-labelledby="tab-ask" class="panel" hidden>
+        <div class="ask-log reading" id="ask-log" aria-live="polite">
+          <p class="placeholder">Ask about the current result. Follow-up questions remember the last few answers. Answers describe the image; they do not diagnose.</p>
+        </div>
+        <form class="row" id="ask-form">
+          <label class="grow">
+            <span class="sr">Question about the current result</span>
+            <input type="text" id="ask-q" maxlength="500" placeholder="Is the thin vessel at the top edge covered?" autocomplete="off">
+          </label>
+          <button type="submit" class="btn primary" id="btn-ask">Ask</button>
+        </form>
+        <div class="chips" id="ask-chips">
+          <button type="button" class="chip">Where is the model least certain, and why?</button>
+          <button type="button" class="chip">Are any thin vessels missed?</button>
+          <button type="button" class="chip">Does the mask leak onto the optic disc rim?</button>
+        </div>
+        <button type="button" class="linkish" id="btn-ask-reset">Start a new conversation</button>
+      </div>
+
+      <div role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" class="panel" hidden>
+        <div class="chat-log" id="chat-log" aria-live="polite">
+          <p class="placeholder">The agent can segment, compare variants, read the XAI numbers and answer questions about the model. Try: “Why did the model predict vessels in the centre?”</p>
+        </div>
+        <form class="row" id="chat-form">
+          <label class="grow">
+            <span class="sr">Message to the agent</span>
+            <input type="text" id="chat-q" maxlength="2000" placeholder="Message the agent" autocomplete="off">
+          </label>
+          <button type="submit" class="btn primary" id="btn-chat">Send</button>
+        </form>
+      </div>
+
+      <div role="tabpanel" id="panel-notes" aria-labelledby="tab-notes" class="panel" hidden>
+        <form class="row" id="notes-form">
+          <label class="grow">
+            <span class="sr">Search the project notes</span>
+            <input type="text" id="notes-q" maxlength="300" placeholder="e.g. FedAvg caveat, focus ratio, test Dice" autocomplete="off">
+          </label>
+          <button type="submit" class="btn primary" id="btn-notes">Search</button>
+        </form>
+        <div class="notes-out" id="notes-out" aria-live="polite">
+          <p class="placeholder">Every explanation and the chat agent look things up in these project notes (knowledge/*.md) and list the notes they used under the answer. Search them directly here.</p>
+        </div>
+      </div>
+
+      <p class="disclaimer" id="disclaimer">Research software. Not a medical device and not for diagnosis.</p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>

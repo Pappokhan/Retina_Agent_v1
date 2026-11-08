@@ -1,0 +1,27 @@
+# Core app
+flask>=3.0
+gunicorn>=22.0
+numpy>=1.26
+pillow>=10.3
+python-dotenv>=1.0
+torch>=2.2
+torchvision>=0.17
+
+# Explanations and agent (Claude)
+langchain>=1.0
+# Pick the providers you use (all three are small); only the one named in VLM_MODEL/AGENT_MODEL is called
+langchain-google-genai>=3.0      # Gemini (free tier)
+langchain-ollama>=1.0            # local models
+langchain-anthropic>=1.0         # Claude (paid)
+langgraph>=1.0
+langchain-text-splitters>=1.0
+rank-bm25>=0.2.2
+
+# Optional: embedding search (RAG_BACKEND=faiss)
+# langchain-community
+# langchain-huggingface
+# sentence-transformers
+# faiss-cpu
+
+# Tests
+pytest>=8.0

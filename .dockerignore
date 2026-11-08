@@ -1,0 +1,9 @@
+.env
+.git
+uploads
+weights
+faiss_index
+tests
+__pycache__
+.pytest_cache
+.venv
