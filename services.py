@@ -1,11 +1,3 @@
-"""Operations shared by the Flask routes and the LangChain tools.
-
-Both entry points call these functions, so the numbers the UI shows and the numbers the
-agent quotes always come from the same code path (the server computes them, never the client).
-
-Predictions of uploaded images are cached by (image, dataset, variant): changing the threshold,
-opening an XAI view or asking the VLM about the same result does not run the network again.
-"""
 from __future__ import annotations
 
 import threading
@@ -121,7 +113,6 @@ def run_compare(image_id: str, dataset: str = config.DEFAULT_DATASET) -> Compari
     return Comparison(image=image, results=results, agreement=agreement, missing=missing)
 
 
-# --- explainability -------------------------------------------------------------
 XAI_METHODS = ("attention", "gradcam", "uncertainty", "mc_dropout")
 
 
@@ -183,7 +174,6 @@ def context_for_vlm(seg: Segmentation) -> dict:
     }
 
 
-# --- overlay ids (so a tool or the VLM can refer to a saved overlay by id) -----
 def save_overlay(image_id: str, dataset: str, variant: str, overlay_img: Image.Image) -> str:
     return U.save_png(overlay_img, f"{image_id}_{dataset}_{variant}_ov")
 
