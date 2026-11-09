@@ -1,4 +1,3 @@
-"""The LangChain agent: the chat model decides which tool to call; the tools do the real work."""
 from __future__ import annotations
 
 import re
@@ -40,8 +39,6 @@ def build_agent(model=None):
     from langgraph.checkpoint.memory import InMemorySaver
 
     return create_agent(
-        # Build the model ourselves so the provider timeout / retry limits apply; a bare string would
-        # create it with no timeout and a stalled provider would hang the chat request for minutes.
         model=model or llm.build(config.AGENT_MODEL),
         tools=TOOLS,
         system_prompt=SYSTEM,
