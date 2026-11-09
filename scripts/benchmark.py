@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-"""Measure latency and throughput on THIS machine (nothing is assumed).
-
-    python scripts/benchmark.py --dataset A --variant best --runs 30
-    python scripts/benchmark.py --dataset A --image sample.png
-"""
 import argparse
 import statistics as st
 import sys
