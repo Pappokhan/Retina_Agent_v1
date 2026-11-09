@@ -1,29 +1,13 @@
-"""Provider-agnostic chat models (Claude, Gemini, Ollama, ...) through LangChain.
-
-A model is written "provider:model", for example
-    google_genai:gemini-2.5-flash      (Gemini API, has a free tier)
-    ollama:gemma4                      (local, free, images stay on this machine)
-    anthropic:claude-sonnet-5-5        (paid)
-A bare name without a provider (claude-sonnet-5-5) means Anthropic, as in earlier versions.
-"""
 from __future__ import annotations
-
 import re
-
 import config
 
 
 class VLMUnavailable(RuntimeError):
-    """No usable model: missing key, missing package or unknown provider."""
-
 
 class VLMError(RuntimeError):
-    """The provider call failed."""
-
 
 class VLMRateLimited(VLMError):
-    """Rate or quota limit reached (common on free tiers)."""
-
 
 PROVIDERS: dict[str, dict] = {
     "anthropic": {
@@ -74,8 +58,6 @@ def missing_packages(*specs: str) -> list[str]:
     import importlib
     import importlib.util
 
-    # langchain.chat_models / langchain.agents (not just "langchain"): an old langchain 0.2 next to a new
-    # langchain-core imports fine at the top level but fails here, which is exactly what the app uses.
     need = {"langchain.chat_models": "langchain", "langchain.agents": "langchain", "langgraph": "langgraph",
             "langchain_core": "langchain-core",
             "langchain_text_splitters": "langchain-text-splitters", "rank_bm25": "rank-bm25"}
@@ -95,7 +77,7 @@ def missing_packages(*specs: str) -> list[str]:
             try:
                 importlib.import_module(module)
                 continue
-            except Exception:  # noqa: BLE001 - any import-time failure means the package is unusable here
+            except Exception:
                 entry = f"{pip_name} (outdated or broken)"
         if entry not in out:
             out.append(entry)
