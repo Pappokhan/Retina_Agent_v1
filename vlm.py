@@ -1,15 +1,3 @@
-"""Vision-language layer. It explains results; it never produces the segmentation.
-
-Works with any LangChain chat model that accepts images (Gemini, Ollama, Claude; see llm.py).
-Default: google_genai:gemini-3.5-flash-lite with low thinking (fast, free tier).
-
-What the model gets for a report:
-  * the original image, the mask overlay, the uncertainty (entropy) map and the attention-gate map;
-  * grounded numbers computed server-side: segmentation stats, image-quality cues, per-region vessel
-    density / uncertainty, and attention-gate focus on vessels.
-It must quote those numbers and never invent new ones. The system prompt forbids diagnosis.
-`qc` in a report is a visual sanity check only, not a measure of accuracy.
-"""
 from __future__ import annotations
 
 import base64
@@ -26,7 +14,7 @@ from PIL import Image
 import config
 import llm
 import rag
-from llm import VLMError, VLMRateLimited, VLMUnavailable  # noqa: F401 - re-exported for callers
+from llm import VLMError, VLMRateLimited, VLMUnavailable
 
 log = logging.getLogger(__name__)
 
@@ -127,7 +115,6 @@ def _call(content: list[dict], json_mode: bool = False) -> str:
     return text
 
 
-# --- answer cache (identical questions about the same result cost nothing) -------
 _cache: OrderedDict = OrderedDict()
 _cache_lock = threading.Lock()
 
@@ -154,7 +141,6 @@ def clear_cache() -> None:
         _history.clear()
 
 
-# --- report ---------------------------------------------------------------------
 _REPORT_SCHEMA = (
     '{"summary": "<=70 words: what the image shows and what the model segmented", '
     '"image_quality": {"rating": "good" | "fair" | "poor", "notes": ["..."]}, '
@@ -235,7 +221,6 @@ def parse_report(text: str) -> dict:
     }
 
 
-# --- ask (streaming, with follow-up memory) ------------------------------------------
 _history: dict[tuple, deque] = {}
 _hist_lock = threading.Lock()
 
@@ -302,7 +287,6 @@ def ask_stream(overlay: Image.Image, question: str, original: Image.Image | None
         raise VLMError(_EMPTY)
 
 
-# --- XAI narration -------------------------------------------------------------------
 _XAI_HELP = {
     "attention": "Attention-gate map: the U-Net's own gating coefficients (psi), averaged over its 4 decoder "
                  "gates. Bright = features from that area were passed on to the decoder.",
@@ -328,7 +312,6 @@ def explain_xai(original: Image.Image, overlay: Image.Image, xai_image: Image.Im
     return _call(content)
 
 
-# --- variant comparison ------------------------------------------------------------
 def compare(original: Image.Image, overlays: dict[str, Image.Image], stats: dict,
             lang: str | None = None, notes: list | None = None) -> str:
     content: list[dict] = [_text("Original image:"), _block(original)]
