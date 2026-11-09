@@ -1,21 +1,3 @@
-"""Checkpoint loading, prediction and model-internal explanations (XAI).
-
-Preprocessing is the notebooks' exact pipeline: Resize((512, 512)) -> ToTensor ->
-ImageNet Normalize; sigmoid on the logits; binarise at 0.5. If you change any of it,
-predictions will no longer match the numbers reported in the notebooks.
-
-Live frames may use a smaller square size (config.LIVE_SIZES) for speed: the U-Net is fully
-convolutional, so it runs at any multiple of 16, but numbers at sizes other than 512 are
-approximations of the 512 result.
-
-XAI available here (all computed from the real model, nothing is simulated):
-  * attention-gate maps: the psi coefficients of the four AttentionBlocks, captured with forward
-    hooks during the normal forward pass (free).
-  * Seg-Grad-CAM (HiResCAM variant): element-wise gradient x activation of a chosen layer for the
-    summed vessel logits, optionally only inside a clicked region of interest.
-  * Monte-Carlo dropout: N stochastic passes with only the Dropout2d layers active, giving a
-    per-pixel standard deviation (model uncertainty).
-"""
 from __future__ import annotations
 
 import threading
@@ -37,22 +19,18 @@ from models import AttentionUNet
 
 
 class ModelNotAvailable(FileNotFoundError):
-    """The checkpoint for this dataset/variant is not on disk."""
-
 
 class BadCheckpoint(RuntimeError):
-    """The file exists but is not a compatible AttentionUNet state_dict."""
 
-
-GATES = ("up1", "up2", "up3", "up4")      # decoder stages with an attention gate (coarse -> fine)
+GATES = ("up1", "up2", "up3", "up4") 
 
 
 @dataclass
 class Prediction:
-    prob: np.ndarray   # (S, S) float32, sigmoid probabilities (S = 512 unless a live size was asked)
-    mask: np.ndarray   # (S, S) bool
-    ms: float          # forward-pass time only (preprocessing excluded)
-    attention: dict[str, np.ndarray] = field(default_factory=dict)   # gate name -> (h, w) psi map in [0, 1]
+    prob: np.ndarray   
+    mask: np.ndarray   
+    ms: float      
+    attention: dict[str, np.ndarray] = field(default_factory=dict) 
 
 
 def validate_choice(dataset: str, variant: str) -> None:
@@ -80,7 +58,6 @@ def check_size(size: int | None) -> int:
 
 
 def build_model() -> nn.Module:
-    # Same constructor arguments as the notebooks.
     return AttentionUNet(n_channels=3, n_classes=1, bilinear=True, dropout=0.1)
 
 
@@ -98,9 +75,8 @@ def _extract_state_dict(obj) -> dict:
 def load_weights(path: Path, device: torch.device) -> nn.Module:
     path = Path(path)
     try:
-        # weights_only=True: refuse arbitrary pickled code inside a .pth
         raw = torch.load(path, map_location="cpu", weights_only=True)
-    except Exception as exc:  # noqa: BLE001 - surface any read failure as one error type
+    except Exception as exc: 
         raise BadCheckpoint(f"{path.name}: cannot be read ({type(exc).__name__}: {exc})") from exc
     state = _extract_state_dict(raw)
     model = build_model()
@@ -111,7 +87,6 @@ def load_weights(path: Path, device: torch.device) -> nn.Module:
             f"{path.name}: weights do not match AttentionUNet (wrong architecture or renamed layers). "
             f"{str(exc).splitlines()[0]}"
         ) from exc
-    # channels_last: same fp32 maths, ~20% faster convolutions on CPU (and on recent GPUs)
     return model.to(device).to(memory_format=torch.channels_last).eval()
 
 
@@ -156,7 +131,6 @@ class ModelRegistry:
         self._run_lock = threading.Lock()   # one forward pass at a time
         self._transforms: dict[int, transforms.Compose] = {}
 
-    # -- bookkeeping -----------------------------------------------------------
     def path(self, dataset: str, variant: str) -> Path:
         validate_choice(dataset, variant)
         return self.weights_dir / dataset / config.VARIANTS[variant]["file"]
@@ -179,7 +153,6 @@ class ModelRegistry:
             t = self._transforms[size] = build_transform(size)
         return t(image.convert("RGB")).unsqueeze(0).to(self.device).contiguous(memory_format=torch.channels_last)
 
-    # -- loading ---------------------------------------------------------------
     def get(self, dataset: str, variant: str) -> nn.Module:
         key = (dataset, variant)
         with self._load_lock:
@@ -205,7 +178,6 @@ class ModelRegistry:
         except (ModelNotAvailable, BadCheckpoint):
             pass
 
-    # -- inference -------------------------------------------------------------
     def predict(self, image: Image.Image, dataset: str, variant: str,
                 threshold: float | None = None, size: int | None = None,
                 attention: bool = False) -> Prediction:
@@ -231,12 +203,6 @@ class ModelRegistry:
     def gradcam(self, image: Image.Image, dataset: str, variant: str,
                 layer: str = config.GRADCAM_DEFAULT_LAYER, roi: np.ndarray | None = None,
                 threshold: float | None = None) -> tuple[np.ndarray, dict]:
-        """Seg-Grad-CAM. roi is an optional (512, 512) bool mask: explain only the vessels inside it.
-
-        Returns (cam (512, 512) in [0, 1], info). The target is the sum of vessel logits over the
-        predicted vessel pixels (inside the ROI). If the ROI holds no predicted vessel, the target is
-        the summed logits of the whole ROI, i.e. "what pushes this area toward vessel".
-        """
         if layer not in config.GRADCAM_LAYERS:
             raise ValueError(f"layer must be one of {', '.join(config.GRADCAM_LAYERS)}.")
         thr = config.THRESHOLD if threshold is None else float(threshold)
@@ -265,9 +231,6 @@ class ModelRegistry:
                 model.zero_grad(set_to_none=True)
                 target.backward()
                 act, grad = store["act"], store["act"].grad
-                # HiResCAM (element-wise gradient x activation) rather than classic Grad-CAM's
-                # spatially averaged weights: it stays faithful to a *local* target such as a clicked
-                # region, where averaged weights smear the evidence over the whole image.
                 cam = F.relu((grad * act).sum(dim=1, keepdim=True))     # (1, 1, h, w)
                 cam = F.interpolate(cam, size=(config.IMG_SIZE, config.IMG_SIZE), mode="bilinear",
                                     align_corners=False)[0, 0].detach()
