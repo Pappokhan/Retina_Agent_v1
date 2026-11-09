@@ -1,9 +1,3 @@
-"""Flask app: segmentation API, realtime camera endpoint, XAI, VLM explanations and the chat agent.
-
-Run:   python app.py
-Prod:  gunicorn -w 1 --threads 4 -b 0.0.0.0:8000 "app:create_app(warmup=True)"
-(one worker: the model cache and the GPU are per process)
-"""
 from __future__ import annotations
 
 import hmac
@@ -129,7 +123,6 @@ def create_app(warmup: bool = False) -> Flask:
         threading.Thread(target=_warmup, daemon=True, name="warmup").start()
     hits: dict[str, deque] = defaultdict(deque)
 
-    # ---- guards ---------------------------------------------------------------
     @app.before_request
     def require_token():
         if config.APP_TOKEN and request.path.startswith("/api/") and request.path != "/api/health":
@@ -153,7 +146,6 @@ def create_app(warmup: bool = False) -> Flask:
             return fn(*args, **kwargs)
         return inner
 
-    # ---- errors: always JSON, always say what to do ---------------------------------
     def fail(message: str, status: int, code: str):
         return jsonify(error=message, code=code), status
 
@@ -200,7 +192,6 @@ def create_app(warmup: bool = False) -> Flask:
         log.exception("unhandled error")
         return fail("Something went wrong on the server. Check the server log for details.", 500, "server_error")
 
-    # ---- pages and status -----------------------------------------------------------
     @app.get("/")
     def index():
         return render_template("index.html")
@@ -233,7 +224,6 @@ def create_app(warmup: bool = False) -> Flask:
             mc_samples=config.MC_SAMPLES,
         )
 
-    # ---- upload / segmentation ---------------------------------------------------------
     @app.post("/api/upload")
     def upload():
         file = request.files.get("image")
@@ -302,7 +292,6 @@ def create_app(warmup: bool = False) -> Flask:
             agreement=cmp.agreement, missing=cmp.missing,
         )
 
-    # ---- explainability (XAI) -------------------------------------------------------
     def _xai_result(body: dict):
         dataset, variant = _choice(body)
         image_id = str(body.get("image_id", ""))
@@ -328,7 +317,6 @@ def create_app(warmup: bool = False) -> Flask:
             out["layers"] = {k: U.to_b64(xai.colorize(v), "JPEG", 80) for k, v in res["layers"].items()}
         return jsonify(out)
 
-    # ---- VLM -------------------------------------------------------------------------------
     def _vlm_maps(seg) -> dict:
         maps = {"uncertainty (entropy)": xai.colorize(xai.entropy(seg.pred.prob))}
         if seg.pred.attention:
@@ -362,7 +350,6 @@ def create_app(warmup: bool = False) -> Flask:
         key = (_client_key(body), image_id, variant)
         maps = _vlm_maps(seg) if body.get("with_xai", True) else None
         past = vlm.history(key)
-        # retrieve with the question plus the previous question, so follow-ups ("why there?") still match
         notes = rag.retrieve(rag.query_for("ask", variant, " ".join([q for q, _ in past[-1:]] + [question])))
         gen = vlm.ask_stream(seg.overlay, question, original=seg.image, lang=body.get("lang"),
                              context=services.context_for_vlm(seg), maps=maps, past=past, notes=notes)
@@ -377,7 +364,6 @@ def create_app(warmup: bool = False) -> Flask:
         return Response(stream_with_context(_safe_stream(recorded(_primed(gen)))),
                         mimetype="text/plain; charset=utf-8",
                         headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no",
-                                 # sources travel in a header because the body is the streamed answer
                                  "X-Sources": quote(json.dumps(rag.sources(notes)))})
 
     @app.post("/api/vlm/ask/reset")
@@ -413,7 +399,6 @@ def create_app(warmup: bool = False) -> Flask:
         text = vlm.compare(cmp.image, {v: r.overlay for v, r in cmp.results.items()}, stats, body.get("lang"), notes)
         return jsonify(text=text, stats=stats, sources=rag.sources(notes))
 
-    # ---- knowledge (RAG) ----------------------------------------------------------------
     @app.get("/api/knowledge/search")
     def knowledge_search():
         q = request.args.get("q", "").strip()
@@ -423,7 +408,6 @@ def create_app(warmup: bool = False) -> Flask:
             raise ValueError("Keep the search under 300 characters.")
         return jsonify(query=q, results=rag.sources(rag.retrieve(q, k=6)))
 
-    # ---- agent ---------------------------------------------------------------------------------
     @app.post("/api/chat")
     @limited
     def chat():
@@ -444,6 +428,6 @@ def create_app(warmup: bool = False) -> Flask:
 if __name__ == "__main__":
     from werkzeug.serving import WSGIRequestHandler
 
-    WSGIRequestHandler.protocol_version = "HTTP/1.1"   # keep-alive: live frames reuse one connection
+    WSGIRequestHandler.protocol_version = "HTTP/1.1" 
     _check_environment()
     create_app(warmup=True).run(host=config.HOST, port=config.PORT, threaded=True)
