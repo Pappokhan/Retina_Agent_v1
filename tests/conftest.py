@@ -15,7 +15,6 @@ import config  # noqa: E402
 
 os.environ.setdefault("RAG_BACKEND", "bm25")
 
-# Layout of the fake weights folder used by most tests: some variants present, some missing.
 LAYOUT = {"A": ["best", "standard", "fedavg"]}
 
 
@@ -77,8 +76,6 @@ def uploaded(client):
     assert r.status_code == 200, r.get_json()
     return r.get_json()["image_id"]
 
-
-# ---- fake chat model (stands in for Claude / Gemini / Ollama) ---------------------
 class _Msg:
     def __init__(self, text):
         self.content = text
