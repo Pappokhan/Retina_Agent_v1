@@ -1,4 +1,3 @@
-"""Image I/O, overlays and small numeric helpers shared by the routes and the agent tools."""
 from __future__ import annotations
 
 import base64
@@ -20,7 +19,6 @@ class BadImage(ValueError):
     """The uploaded bytes are not a usable image."""
 
 
-# --- ids and paths -------------------------------------------------------------
 def check_id(value: str) -> str:
     """Only letters, digits and underscores: stops path traversal through ids."""
     if not isinstance(value, str) or not ID_RE.match(value):
@@ -36,7 +34,6 @@ def upload_path(image_id: str) -> Path:
     return path
 
 
-# --- decoding / saving ---------------------------------------------------------
 def decode_image(data: bytes) -> Image.Image:
     """Validate and decode untrusted bytes into an RGB image."""
     if not data:
@@ -110,7 +107,6 @@ def purge_uploads(force: bool = False) -> int:
     return removed
 
 
-# --- rendering -----------------------------------------------------------------
 def resized(img: Image.Image, size: int = config.IMG_SIZE) -> Image.Image:
     img = img.convert("RGB")
     return img if img.size == (size, size) else img.resize((size, size), Image.Resampling.BILINEAR)
@@ -160,7 +156,6 @@ def to_b64(img: Image.Image, fmt: str = "PNG", quality: int = 85) -> str:
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-# --- numbers --------------------------------------------------------------------
 def mask_stats(prob: np.ndarray, mask: np.ndarray) -> dict:
     lo, hi = config.UNCERTAIN_BAND
     fg = mask.astype(bool)
