@@ -1,17 +1,4 @@
 #!/usr/bin/env python
-"""Check that the deployed model reproduces the notebook's numbers on the notebook's own test split.
-
-Point it at the same image/mask folders the notebook used. It rebuilds the notebook split
-(random_split with seed 42 over the sorted file list) and scores one checkpoint with the app's own
-inference code. Dataset B's notebook joins a train folder and a test folder: pass --images twice and
---masks twice, in that order.
-
-    python scripts/eval_folder.py --dataset A --variant standard --images "Dataset D/images" --masks "Dataset D/masks"
-    python scripts/eval_folder.py --dataset B --images "Dataset A/train/image" --images "Dataset A/test/image" \
-                                  --masks "Dataset A/train/mask" --masks "Dataset A/test/mask"
-
-The notebooks evaluated the final-epoch model, so --variant standard should match their printed test metrics.
-"""
 import argparse
 import glob
 import os
