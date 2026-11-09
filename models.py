@@ -1,15 +1,8 @@
-"""Attention U-Net, copied unchanged from the training notebooks.
-
-Class names, attribute names and layer order must stay exactly as they are: the
-checkpoints are plain state_dicts, so any rename breaks load_state_dict(strict=True).
-The four notebooks (A-D) define this identically (13,746,861 trainable parameters).
-"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-# Basic building blocks
 class DoubleConv(nn.Module):
     def __init__(self, in_ch, out_ch, dropout=0.0):
         super().__init__()
@@ -91,7 +84,6 @@ class AttentionBlock(nn.Module):
         psi = self.psi(psi)
         return x * psi
 
-#Attention Up
 class AttUp(nn.Module):
     def __init__(self, in_ch, skip_ch, out_ch, bilinear=True, dropout=0.0):
         super().__init__()
