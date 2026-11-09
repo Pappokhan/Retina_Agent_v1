@@ -1,19 +1,3 @@
-"""Retrieval-augmented generation over the project's own notes in knowledge/*.md.
-
-Used everywhere a language model answers: the report, Ask, "explain this map", the variant
-comparison and the chat agent (search_knowledge tool). Every answer that used notes returns
-its sources, so the UI can show where a fact came from.
-
-How retrieval works
-  * Chunking follows the Markdown structure: each "## section" becomes one or more chunks that
-    keep their file name and section title (so citations read "model_card.md > Reported test results").
-  * Default backend: BM25 (pure Python, no download) with light stemming, stop-word removal and
-    the section title counted twice, so a query matching a heading ranks that section first.
-  * RAG_BACKEND=faiss switches to embedding search (needs langchain-huggingface,
-    sentence-transformers and faiss-cpu).
-  * The index is rebuilt automatically when a note is added, edited or removed, so you can edit
-    knowledge/*.md while the server runs.
-"""
 from __future__ import annotations
 
 import re
@@ -42,7 +26,6 @@ class Hit:
         return f"{self.source} > {self.section}" if self.section else self.source
 
 
-# --- chunking ---------------------------------------------------------------------
 def load_chunks(knowledge_dir: Path | None = None) -> list[Document]:
     root = Path(knowledge_dir or config.KNOWLEDGE_DIR)
     by_header = MarkdownHeaderTextSplitter(headers_to_split_on=[("#", "title"), ("##", "section")],
@@ -64,7 +47,6 @@ def _signature(root: Path) -> tuple:
     return tuple((p.name, p.stat().st_mtime_ns, p.stat().st_size) for p in sorted(root.glob("*.md")))
 
 
-# --- BM25 -------------------------------------------------------------------------
 _STOP = set("""a an and are as at be by can do does for from has have how i if in into is it its of on or
 so that the their them then there these this to was what when where which who why will with you your
 me my we our than about also not no""".split())
@@ -112,7 +94,6 @@ def _faiss(chunks: list[Document], k: int):
     emb = HuggingFaceEmbeddings(model_name=config.RAG_EMBEDDING_MODEL)
     index = Path(config.INDEX_DIR)
     if (index / "index.faiss").is_file():
-        # Safe to unpickle: this index was written by rebuild_faiss_index() on this machine.
         db = FAISS.load_local(str(index), emb, allow_dangerous_deserialization=True)
     else:
         db = FAISS.from_documents(chunks, emb)
@@ -131,7 +112,6 @@ def rebuild_faiss_index() -> int:
     return len(chunks)
 
 
-# --- retriever cache (auto-refresh when notes change) ---------------------------------
 _state: dict = {}
 _lock = threading.Lock()
 
@@ -163,7 +143,6 @@ def clear_cache() -> None:
 get_retriever.cache_clear = clear_cache      # old name, kept for callers and tests
 
 
-# --- public API ---------------------------------------------------------------------
 def retrieve(query: str, k: int | None = None) -> list[Hit]:
     """Top notes for a query, best first, without duplicate chunks."""
     k = k or config.RAG_K
@@ -220,7 +199,6 @@ def sources(hits: list[Hit]) -> list[dict]:
             for i, h in enumerate(hits, 1)]
 
 
-# --- queries used by the explanation features ----------------------------------------------
 _VARIANT_TERMS = {
     "best": "best validation checkpoint",
     "standard": "final epoch standard checkpoint test results",
