@@ -1,8 +1,3 @@
-"""LangChain tools for the agent.
-
-Tools take ids (text), never image bytes. Expected failures come back as "ERROR: ..." text so the
-agent can relay them to the user instead of crashing the turn.
-"""
 from __future__ import annotations
 
 import functools
