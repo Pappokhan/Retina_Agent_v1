@@ -1,11 +1,4 @@
 #!/usr/bin/env python
-"""Copy the 16 notebook checkpoints into weights/<dataset>/<variant>.pth.
-
-Each notebook saved four files with the same names, so point this at one folder per dataset
-(searched recursively), for example the Kaggle output folder of each notebook:
-
-    python scripts/organize_weights.py --A ~/out_A --B ~/out_B --C ~/out_C --D ~/out_D
-"""
 import argparse
 import shutil
 import sys
