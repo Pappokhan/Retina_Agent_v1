@@ -1,8 +1,3 @@
-"""Explainability helpers: colour maps, image-quality and region numbers, XAI summaries.
-
-Everything here is computed from the real image, prediction and model internals. The numbers are
-handed to the VLM so it can describe them; the VLM never computes them.
-"""
 from __future__ import annotations
 
 import numpy as np
@@ -10,7 +5,6 @@ from PIL import Image
 
 import config
 
-# Perceptually ordered "inferno"-like ramp (dark -> purple -> orange -> pale yellow).
 _STOPS = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
 _INFERNO = np.array([[0, 0, 4], [87, 16, 110], [188, 55, 84], [249, 142, 9], [252, 255, 164]], dtype=np.float32)
 
@@ -55,7 +49,6 @@ def roi_mask(x: float, y: float, r: float, size: int = config.IMG_SIZE) -> np.nd
     return (xx - x) ** 2 + (yy - y) ** 2 <= r * r
 
 
-# --- numbers --------------------------------------------------------------------
 def image_quality(image: Image.Image) -> dict:
     """Simple, objective acquisition-quality cues (not a clinical gradeability score)."""
     g = np.asarray(image.convert("L").resize((config.IMG_SIZE, config.IMG_SIZE)), dtype=np.float32)
@@ -107,7 +100,6 @@ def attention_summary(maps: dict[str, np.ndarray], mask: np.ndarray) -> tuple[np
             "resolution": int(a.shape[0]),
             "mean": round(float(a.mean()), 3),
             "on_vessel_share": round(on, 3),
-            # >1 means the gate attends to vessels more than their area alone would explain
             "vessel_focus_ratio": round(on / vessel_share, 2) if vessel_share > 0 else None,
         }
     combined = normalize(np.mean(ups, axis=0)) if ups else np.zeros((config.IMG_SIZE,) * 2, np.float32)
